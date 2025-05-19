@@ -4,6 +4,8 @@ library(busdater)
 library(ggrepel)
 library(ggpmisc)
 library(pscl)
+library(formattable)
+library(MASS)
 
 ###import and clean loss data
 sh_import <- read_csv('https://www.cbr.washington.edu/sacramento/data/php/rpt/juv_loss_detail.php?sc=1&outputFormat=csv&year=all&species=2%3Aall&dnaOnly=no&age=no') %>%
@@ -42,14 +44,17 @@ all_wy_types <- wytypes %>%
   left_join(sj_wy_types_prev_year, by = 'wy') #joining to wy_type - 1
 
 ###summarizing loss data by WY and joining water year types
-sh_year <- sh %>%
+sh_year_all <- sh %>%
   group_by(wy, adipose_clip) %>%
-  summarize(loss = sum(loss, na.rm = TRUE)) %>%
+  summarize(loss = sum(nfish, na.rm = TRUE)) %>%
   pivot_wider(names_from = 'adipose_clip', values_from = 'loss') %>%
   left_join(hatchery, by = 'wy') %>%
   mutate(hatch_prop = Clipped/number_released) %>%
-  left_join(all_wy_types, by = 'wy') %>%
-  filter(wy > 2008)
+  left_join(all_wy_types, by = 'wy') 
+
+sh_year <- sh_year_all %>%
+  filter(wy > 2008) %>%
+  mutate(Unclipped = as.integer(Unclipped))
 
 ###exploratory data analysis showing correlation between hatchery and natural steelhead loss 
 hatch_v_natural <- ggplot(sh_year, aes(x = Unclipped, y = hatch_prop)) +
@@ -66,11 +71,22 @@ hatch_v_natural <- ggplot(sh_year, aes(x = Unclipped, y = hatch_prop)) +
         axis.text.y = element_text(size = 13))
 hatch_v_natural
 
+modelold <- lm(Unclipped ~ sj_index_prev * sj_index_prev2, #model both years with interaction
+                          data = sh_year_all)
+summary(modelold)
+
+modelnew <- modelnew <- lm(Unclipped ~ sj_index_prev * sj_index_prev2, #model both years with interaction
+                           data = sh_year)
+summary(modelnew)
 ###linear model correlating annual steelhead loss to previous years water type
 model1 <- glm(Unclipped ~ sj_index_prev * sj_index_prev2, #model both years with interaction
                         family = gaussian(link = "log"), 
                         data = sh_year)
 summary(model1)
+
+model.nm <- glm.nb(Unclipped ~ sj_index_prev * sj_index_prev2,
+                   data = sh_year)
+summary(model.nm)
 
 model2 <- glm(Unclipped ~ sj_index_prev + sj_index_prev2, #model both years without interaction
               family = gaussian(link = "log"), 
@@ -93,9 +109,10 @@ aics <- data.frame(model = c('model1', 'model2', 'model3', 'model4'), #comparing
                    pseudo_r2 = round(c(pR2(model1)["McFadden"],pR2(model2)["McFadden"],
                                  pR2(model3)["McFadden"],pR2(model4)["McFadden"]),2)) %>%
   arrange(aic)
+formattable(aics)
 
 ###making predictions on existing data using the best model
-preds <- predict(model1, newdata = sh_year, type = "response", se.fit = TRUE)
+preds <- predict(model.nm, newdata = sh_year, type = "response", se.fit = TRUE)
 
 sh_year$pred <- preds$fit
 sh_year$se <- preds$se.fit
@@ -116,13 +133,19 @@ predict_graph
 
 ###graphing overall model
 final_fit <- expand.grid(sj_index_prev = seq(0.5,7,0.1),
-                         sj_index_prev2 = seq(1,7,1))
+                         sj_index_prev2 = c(1.8,2.3,2.8,3.3,3.8))
 preds_final <- predict(model1, newdata = final_fit, type = "response", se.fit = TRUE)
 
 final_fit$pred <- preds_final$fit
 final_fit$se <- preds_final$se.fit
 final_fit$lower_ci <- preds_final$fit - 1.96 * preds_final$se.fit
 final_fit$upper_ci <- preds_final$fit + 1.96 * preds_final$se.fit
+
+final_fit <- final_fit %>% 
+  mutate(sj_index_prev2 = factor(sj_index_prev2, 
+                                 levels = c(1.8,2.3,2.8,3.3,3.8),
+                                 labels = c('Critical', 'Dry', 'Below Normal',
+                                            'Above Normal', 'Wet')))
 
 final_fit_graph <- ggplot(final_fit, aes(sj_index_prev, pred, 
                                          color = factor(sj_index_prev2),
@@ -138,4 +161,13 @@ final_fit_graph <- ggplot(final_fit, aes(sj_index_prev, pred,
         axis.title.x = element_text(margin=margin(t=15), size = 15),
         axis.text.x = element_text(size = 13),
         axis.text.y = element_text(size = 13))
-final_fit_graph  
+final_fit_graph
+
+####predicting WY 2025 loss
+wy2025 <- expand.grid(facility = c('SWP', 'CVP'), sj_index_prev = 3.49,
+                    sj_index_prev2 = 6.40)
+
+wy2025$pred <- predict(model.nm, newdata = wy2025, type = 'response')
+
+
+
