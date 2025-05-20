@@ -206,3 +206,14 @@ get_dayflow <- function(){
   
 }
 
+
+####function for predicting with models
+add_predictions_with_ci <- function(model, newdata) {
+  preds <- predict(model, newdata = newdata, type = "response", se.fit = TRUE)
+  newdata$pred <- preds$fit
+  newdata$se <- preds$se.fit
+  newdata$lower_ci <- preds$fit - 1.96 * preds$se.fit
+  newdata$upper_ci <- preds$fit + 1.96 * preds$se.fit
+  return(newdata)
+}
+
