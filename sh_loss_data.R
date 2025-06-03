@@ -1,16 +1,13 @@
-source("functions.R")
-
 library(tidyverse)
 library(janitor)
 library(busdater)
-library(ggrepel)
-library(ggpmisc)
-library(pscl)
-library(AICcmodavg)
 library(dataRetrieval)
 library(rvest)
 library(CDECRetrieve)
+library(here)
 
+project <- here() #setting path for any files
+source(here(project, "functions.R"))
 ###import and clean loss data
 sh_import <- read_csv('https://www.cbr.washington.edu/sacramento/data/php/rpt/juv_loss_detail.php?sc=1&outputFormat=csv&year=all&species=2%3Aall&dnaOnly=no&age=no') %>%
   clean_names()
@@ -21,13 +18,13 @@ sh <- sh_import %>%
          !is.na(adipose_clip))
 
 ###import and clean hatchery data
-old_hatchery <- read_csv('CV_Steelhead_Hatchery_Release_Database.csv') %>% ###adding a few older years that aren't in hatchery_releases.csv
+old_hatchery <- read_csv(here(project, 'external_data/CV_Steelhead_Hatchery_Release_Database.csv')) %>% ###adding a few older years that aren't in hatchery_releases.csv
   clean_names() %>%
   group_by(water_year_wy) %>%
   summarize(number_released = sum(total_number_released)) %>%
   filter(water_year_wy %in% c(1994,1995,1996,1997,1998)) %>%
   rename('wy' = 'water_year_wy')
-hatchery <- bind_rows(read_csv("hatchery_releases.csv"), old_hatchery) #binding all hatchery releases together
+hatchery <- bind_rows(read_csv(here(project,"external_data/hatchery_releases.csv")), old_hatchery) #binding all hatchery releases together
 
 ###import and clean water year type data
 wytypes <- read_csv("https://www.cbr.washington.edu/sacramento/data/php/rpt/hci.php?sc=1&outputFormat=csv&classification=Official") %>%
@@ -149,5 +146,5 @@ data_flow <- bind_rows(data_flow,data_comb_sum)
 #Rejoin data
 sh_year <- sh_year %>% left_join(data_OMR_sum) %>% left_join(data_flow)
 
-saveRDS(sh_year, 'model_data.rds')
+saveRDS(sh_year, here(project,'model_data.rds'))
 
