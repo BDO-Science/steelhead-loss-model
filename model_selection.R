@@ -3,6 +3,7 @@ library(MASS)
 library(MuMIn)
 library(DHARMa)
 library(corrplot)
+library(here)
 
 project <- here()
 source(here(project,'functions.R'))
@@ -183,4 +184,24 @@ fit <- expand.grid(sj_index_prev = seq(0.5,7,0.5),
                          OMR_mean = seq(-4000,2000,500),
                          sac = seq(8000,50000,1000))
 
-fit <- add_predictions_with_ci(top_model, fit)
+fit <- add_predictions_with_ci_80(top_model, fit)
+
+index_plot <- fit %>%
+  mutate(lower_ci = if_else(lower_ci < 0, 0, lower_ci)) %>%
+  mutate(sj_index_prev2 = ceiling(sj_index_prev2)) %>%
+  group_by(sj_index_prev, sj_index_prev2) %>%
+  summarize(pred = mean(pred),
+            upper_ci = mean(upper_ci),
+            lower_ci = mean(lower_ci)) %>%
+  ggplot(aes(sj_index_prev, pred)) +
+  geom_line(color = 'steelblue3', linewidth = 1) +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), color = 'steelblue3', fill = 'steelblue3', alpha = 0.3) +
+  facet_wrap(~sj_index_prev2, scales = 'free_y') +
+  scale_y_continuous(labels = scales::label_comma()) +
+  theme_bw() +
+  theme(plot.margin = margin(0.5,0.5,0.2,0.2, unit = 'cm'),
+        axis.title.y = element_text(margin=margin(r=15), size = 15),
+        axis.title.x = element_text(margin=margin(t=15), size = 15),
+        axis.text.x = element_text(size = 13),
+        axis.text.y = element_text(size = 13))
+index_plot
