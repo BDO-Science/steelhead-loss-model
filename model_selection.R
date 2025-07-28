@@ -14,6 +14,9 @@ data_all <- readRDS(here(project,'model_data.rds')) %>%
 data_filtered <- data_all %>%
   dplyr::filter(wy > 2008)
 
+mean(data_filtered$loss)
+var(data_filtered$loss)
+
 ################
 #quick corr plot
 ################
@@ -68,14 +71,14 @@ full_model_no_interact <- glm.nb(loss ~ facility + OMR_mean + exports + sac +
 model_set_no_interact <- dredge(full_model_no_interact) #modeling all combinations of covariates
 
 full_model_interact <- glm.nb(loss ~ facility + OMR_mean + exports + sac + 
-                                sj_index_prev + sj_index_prev2 + 
-                                sac_index_prev + sj_index_prev:sj_index_prev2, 
+                                sac_index_prev + sj_index_prev + 
+                                sj_index_prev2 + sj_index_prev:sj_index_prev2, 
                               data = data_filtered, na.action = na.fail)
 
 model_set_interact <- dredge(full_model_interact) #modeling all combinations of covariates
 
 
-top_models <- get.models(model_set_interact, subset = 1:5) #pulling top 5 models based on AICc from interaction model
+top_models <- get.models(model_set_interact, subset = 1:10) #pulling top 5 models based on AICc from interaction model
 
 ##########################################
 #cross-validation of all top models
